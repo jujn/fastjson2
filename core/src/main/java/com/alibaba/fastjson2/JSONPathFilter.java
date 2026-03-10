@@ -1020,6 +1020,57 @@ abstract class JSONPathFilter
         }
     }
 
+    static final class NameSubFilterSegment
+            extends NameFilter {
+        final JSONPathFilter subFilter;
+
+        NameSubFilterSegment(String fieldName, long fieldNameNameHash, JSONPathFilter subFilter) {
+            super(fieldName, fieldNameNameHash);
+            this.subFilter = subFilter;
+        }
+
+        @Override
+        public boolean apply(JSONPath.Context context, Object object) {
+            if (object == null) {
+                return false;
+            }
+
+            Object fieldValue;
+            if (object instanceof Map) {
+                fieldValue = ((Map<?, ?>) object).get(fieldName);
+            } else {
+                JSONWriter.Context writerContext = context.path.getWriterContext();
+                ObjectWriter objectWriter = writerContext.getObjectWriter(object.getClass());
+                if (objectWriter instanceof ObjectWriterAdapter) {
+                    FieldWriter fieldWriter = objectWriter.getFieldWriter(fieldNameNameHash);
+                    if (fieldWriter == null) {
+                        return false;
+                    }
+                    fieldValue = fieldWriter.getFieldValue(object);
+                } else {
+                    return false;
+                }
+            }
+
+            if (!(fieldValue instanceof List)) {
+                return false;
+            }
+
+            List list = (List) fieldValue;
+            for (Object item : list) {
+                if (subFilter.apply(context, item)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        boolean apply(Object fieldValue) {
+            return false;
+        }
+    }
+
     static final class NameExistsFilter
             extends JSONPathFilter {
         final String name;
